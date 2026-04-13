@@ -2,11 +2,17 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { env } from '../config/env.js';
 
 const MODEL_CANDIDATES = [
+  'gemini-2.5-flash',
+  'gemini-2.5-pro',
   'gemini-2.0-flash',
   'gemini-2.0-flash-lite',
   'gemini-1.5-flash-latest',
   'gemini-1.5-flash',
 ];
+
+let cachedStatus = null;
+let lastStatusAt = 0;
+const STATUS_TTL_MS = 5 * 60 * 1000;
 
 function fallbackLevel(score) {
   if (score >= 86) return 'Expert';
@@ -45,7 +51,7 @@ function compareText(transcript, reference) {
 
 function buildFallbackResult(kind, payload = {}, reason = 'Gemini is currently unavailable.') {
   const reasonText = `Using fallback analysis: ${reason}`;
-  const tipText = 'Please try again shortly. If this persists, verify GEMINI_API_KEY and model availability for your region.';
+  const tipText = 'Use concise sentence structure, maintain steady pacing, articulate word endings, and self-correct immediately after slips to improve clarity and fluency.';
 
   if (kind === 'reading') {
     const { transcript = '', referenceText = '' } = payload;
@@ -159,4 +165,59 @@ export async function analyzeWithGemini(kind, payload) {
 
   const reason = lastError?.message || 'No supported Gemini model responded successfully.';
   return buildFallbackResult(kind, payload, reason);
+}
+
+export async function getGeminiStatus(force = false) {
+  const now = Date.now();
+  if (!force && cachedStatus && now - lastStatusAt < STATUS_TTL_MS) {
+    return cachedStatus;
+  }
+
+  if (!env.geminiApiKey) {
+    cachedStatus = {
+      ok: false,
+      provider: 'gemini',
+      mode: 'fallback',
+      model: null,
+      reason: 'GEMINI_API_KEY is missing.',
+      checkedAt: new Date().toISOString(),
+    };
+    lastStatusAt = now;
+    return cachedStatus;
+  }
+
+  const genAI = new GoogleGenerativeAI(env.geminiApiKey);
+  let lastError = null;
+
+  for (const modelName of MODEL_CANDIDATES) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent('Respond with exactly: OK');
+      const text = result.response.text().trim();
+
+      cachedStatus = {
+        ok: text.toUpperCase().includes('OK'),
+        provider: 'gemini',
+        mode: text.toUpperCase().includes('OK') ? 'live' : 'fallback',
+        model: modelName,
+        reason: text.toUpperCase().includes('OK') ? 'Gemini responded successfully.' : `Unexpected response: ${text}`,
+        checkedAt: new Date().toISOString(),
+      };
+      lastStatusAt = now;
+      return cachedStatus;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  cachedStatus = {
+    ok: false,
+    provider: 'gemini',
+    mode: 'fallback',
+    model: null,
+    reason: lastError?.message || 'No supported Gemini model responded successfully.',
+    checkedAt: new Date().toISOString(),
+  };
+  lastStatusAt = now;
+  return cachedStatus;
 }

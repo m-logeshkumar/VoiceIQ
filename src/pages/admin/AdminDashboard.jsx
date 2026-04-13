@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getAllScores, getParagraphs, getTopics, getListeningItems, addParagraph, addTopic, addListeningItem, deleteParagraph, deleteTopic, deleteListeningItem } from '../../services/dataService';
+import { getAllScores, getParagraphs, getTopics, getListeningItems, addParagraph, addTopic, addListeningItem, deleteParagraph, deleteTopic, deleteListeningItem, deleteAssessmentResult, deleteUserById } from '../../services/dataService';
 import { Shield, Users, BarChart3, BookOpen, Headphones, MessageSquare, Plus, Trash2, X } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -63,6 +63,20 @@ export default function AdminDashboard() {
     await refreshData();
   };
 
+  const handleDeleteUser = async (user) => {
+    const ok = window.confirm(`Delete user ${user.name}? This will also delete all their assessment results from DB.`);
+    if (!ok) return;
+    await deleteUserById(user.id);
+    await refreshData();
+  };
+
+  const handleDeleteScore = async (score) => {
+    const ok = window.confirm(`Delete assessment result for ${score.userName}?`);
+    if (!ok) return;
+    await deleteAssessmentResult(score.id);
+    await refreshData();
+  };
+
   if (loading) {
     return <div className="main-content">Loading admin dashboard...</div>;
   }
@@ -106,7 +120,7 @@ export default function AdminDashboard() {
       {tab === 'users' && (
         <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
           <table className="admin-table">
-            <thead><tr><th>Name</th><th>Email</th><th>College</th><th>Role</th><th>Joined</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>College</th><th>Role</th><th>Joined</th><th>Action</th></tr></thead>
             <tbody>
               {users.map((u, i) => (
                 <tr key={i}>
@@ -115,6 +129,13 @@ export default function AdminDashboard() {
                   <td style={{ color: 'var(--text-muted)' }}>{u.college || '—'}</td>
                   <td><span className={`badge badge-${u.role === 'admin' ? 'amber' : 'blue'}`}>{u.role}</span></td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
+                  <td>
+                    {u.role !== 'admin' ? (
+                      <button className="btn btn-ghost btn-sm" onClick={() => handleDeleteUser(u)} style={{ color: 'var(--accent-rose)' }}>
+                        <Trash2 size={14} />
+                      </button>
+                    ) : <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>Protected</span>}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -192,7 +213,7 @@ export default function AdminDashboard() {
       {tab === 'scores' && (
         <div className="glass-card" style={{ padding: 0, overflow: 'auto' }}>
           <table className="admin-table">
-            <thead><tr><th>Student</th><th>Reading</th><th>Listening</th><th>Speaking</th><th>Overall</th><th>Level</th><th>Date</th></tr></thead>
+            <thead><tr><th>Student</th><th>Reading</th><th>Listening</th><th>Speaking</th><th>Overall</th><th>Level</th><th>Date</th><th>Action</th></tr></thead>
             <tbody>
               {scores.map((s, i) => (
                 <tr key={i}>
@@ -203,9 +224,14 @@ export default function AdminDashboard() {
                   <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{s.overall}</td>
                   <td><span className={`badge badge-${s.performanceLevel === 'Expert' ? 'purple' : 'amber'}`}>{s.performanceLevel}</span></td>
                   <td style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{new Date(s.date).toLocaleDateString()}</td>
+                  <td>
+                    <button className="btn btn-ghost btn-sm" onClick={() => handleDeleteScore(s)} style={{ color: 'var(--accent-rose)' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
                 </tr>
               ))}
-              {scores.length === 0 && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No scores recorded yet</td></tr>}
+              {scores.length === 0 && <tr><td colSpan={8} style={{ textAlign: 'center', padding: 40, color: 'var(--text-muted)' }}>No scores recorded yet</td></tr>}
             </tbody>
           </table>
         </div>

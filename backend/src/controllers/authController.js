@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env.js';
 import { User } from '../models/User.js';
+import { Score } from '../models/Score.js';
 
 function toSafeUser(user) {
   return {
@@ -87,4 +88,22 @@ export async function me(req, res) {
 export async function listUsers(req, res) {
   const users = await User.find().sort({ createdAt: -1 });
   return res.json({ users: users.map(toSafeUser) });
+}
+
+export async function deleteUser(req, res) {
+  const { id } = req.params;
+
+  const user = await User.findById(id);
+  if (!user) {
+    return res.status(404).json({ message: 'User not found' });
+  }
+
+  if (user.role === 'admin') {
+    return res.status(403).json({ message: 'Admin user deletion is not allowed' });
+  }
+
+  await User.findByIdAndDelete(id);
+  await Score.deleteMany({ userId: id });
+
+  return res.status(204).send();
 }

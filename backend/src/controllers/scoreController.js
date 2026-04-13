@@ -41,3 +41,12 @@ export async function getLeaderboard(req, res) {
   const leaderboard = Object.values(byUser).sort((a, b) => b.overall - a.overall);
   return res.json({ leaderboard });
 }
+
+export async function deleteScore(req, res) {
+  const { id } = req.params;
+  const deleted = await Score.findByIdAndDelete(id);
+  if (!deleted) {
+    return res.status(404).json({ message: 'Assessment result not found' });
+  }
+  return res.status(204).send();
+}

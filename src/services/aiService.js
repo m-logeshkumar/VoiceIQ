@@ -46,6 +46,11 @@ export async function analyzeJAM(transcript, topic) {
   return result;
 }
 
+export async function getAiStatus() {
+  const { status } = await apiRequest('/assessments/status');
+  return status;
+}
+
 export function generateFinalReport(readingResult, listeningResult, jamResult) {
   const scores = {
     reading: readingResult?.overallScore || 0,

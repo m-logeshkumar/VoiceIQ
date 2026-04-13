@@ -78,15 +78,23 @@ export async function saveScore(userId, userName, college, report) {
 
 export async function getUserScores(userId) {
   const { scores } = await apiRequest(`/scores/user/${userId}`, {}, true);
-  return scores.map((score) => ({ ...score, date: score.date || score.createdAt }));
+  return scores.map((score) => ({ ...score, id: score.id || score._id, date: score.date || score.createdAt }));
 }
 
 export async function getAllScores() {
   const { scores } = await apiRequest('/scores', {}, true);
-  return scores.map((score) => ({ ...score, date: score.date || score.createdAt }));
+  return scores.map((score) => ({ ...score, id: score.id || score._id, date: score.date || score.createdAt }));
 }
 
 export async function getLeaderboard(period = 'all') {
   const { leaderboard } = await apiRequest(`/scores/leaderboard?period=${period}`, {}, true);
   return leaderboard;
+}
+
+export async function deleteAssessmentResult(id) {
+  await apiRequest(`/scores/${id}`, { method: 'DELETE' }, true);
+}
+
+export async function deleteUserById(id) {
+  await apiRequest(`/auth/users/${id}`, { method: 'DELETE' }, true);
 }

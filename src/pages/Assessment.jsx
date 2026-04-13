@@ -20,11 +20,47 @@ export default function Assessment() {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(type === 'listening' ? 1 : type === 'jam' ? 2 : 0);
   const [results, setResults] = useState({ reading: null, listening: null, jam: null });
+  const [savedSteps, setSavedSteps] = useState({ reading: false, listening: false, jam: false });
   const [showFinal, setShowFinal] = useState(false);
   const [finalReport, setFinalReport] = useState(null);
 
-  const handleComplete = (stepId, result) => {
+  const buildSingleStepReport = (stepId, result) => {
+    const reading = stepId === 'reading' ? (result?.overallScore || 0) : 0;
+    const listening = stepId === 'listening' ? (result?.overallScore || 0) : 0;
+    const speaking = stepId === 'jam' ? (result?.overallScore || 0) : 0;
+    const overall = result?.overallScore || 0;
+
+    return {
+      overall,
+      performanceLevel: result?.performanceLevel || 'Beginner',
+      scores: { reading, listening, speaking },
+      pronunciation: result?.pronunciation || 0,
+      fluency: result?.fluency || 0,
+      listening: result?.listeningScore || result?.accuracy || listening,
+      confidence: result?.confidence || 0,
+      vocabulary: result?.vocabulary || 0,
+      grammar: result?.grammarClarity || result?.grammar || 0,
+      strengths: [stepId.charAt(0).toUpperCase() + stepId.slice(1)],
+      weaknesses: [],
+      tips: result?.tips || [],
+      date: new Date().toISOString(),
+    };
+  };
+
+  const handleComplete = async (stepId, result) => {
     setResults(prev => ({ ...prev, [stepId]: result }));
+
+    // Save each completed test immediately so dashboard/leaderboard updates even
+    // if user exits before completing all 3 sections.
+    if (!savedSteps[stepId]) {
+      try {
+        const stepReport = buildSingleStepReport(stepId, result);
+        await saveScore(user.id, user.name, user.college || '', stepReport);
+        setSavedSteps(prev => ({ ...prev, [stepId]: true }));
+      } catch (err) {
+        console.error('Failed to save step score:', err);
+      }
+    }
   };
 
   const goToNext = async () => {

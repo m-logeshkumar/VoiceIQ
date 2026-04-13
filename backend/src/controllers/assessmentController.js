@@ -1,4 +1,9 @@
-import { analyzeWithGemini } from '../services/geminiService.js';
+import { analyzeWithGemini, getGeminiStatus } from '../services/geminiService.js';
+
+export async function getAiStatus(_req, res) {
+  const status = await getGeminiStatus();
+  return res.json({ status });
+}
 
 export async function analyzeReading(req, res) {
   const result = await analyzeWithGemini('reading', req.body);
