@@ -15,69 +15,128 @@ function fallbackLevel(score) {
   return 'Beginner';
 }
 
-function buildFallbackResult(kind, reason = 'Gemini is currently unavailable.') {
-  const overallScore = 65;
+function clamp(n, min = 0, max = 100) {
+  return Math.max(min, Math.min(max, Math.round(n)));
+}
+
+function words(text) {
+  return (text || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function compareText(transcript, reference) {
+  const spoken = words(transcript);
+  const target = words(reference);
+  const spokenSet = new Set(spoken);
+
+  const correct = [];
+  const missed = [];
+  for (const w of target) {
+    if (spokenSet.has(w)) correct.push(w);
+    else missed.push(w);
+  }
+
+  const accuracy = target.length ? (correct.length / target.length) * 100 : 0;
+  return { spoken, target, correct, missed, accuracy: clamp(accuracy) };
+}
+
+function buildFallbackResult(kind, payload = {}, reason = 'Gemini is currently unavailable.') {
   const reasonText = `Using fallback analysis: ${reason}`;
   const tipText = 'Please try again shortly. If this persists, verify GEMINI_API_KEY and model availability for your region.';
 
   if (kind === 'reading') {
+    const { transcript = '', referenceText = '' } = payload;
+    const cmp = compareText(transcript, referenceText);
+    const overallScore = clamp(cmp.accuracy * 0.9 + 10);
+    const pronunciation = clamp(overallScore - 2);
+    const fluency = clamp(overallScore + (cmp.spoken.length > 20 ? 2 : -4));
+    const grammarClarity = clamp(50 + overallScore * 0.45);
+    const speechSpeed = clamp(45 + Math.min(cmp.spoken.length, 120) * 0.35);
+    const pausesHesitation = clamp(fluency - 3);
+    const confidence = clamp(fluency + 1);
+    const accentClarity = clamp(pronunciation - 1);
+    const wordStress = clamp(pronunciation - 2);
+
     return {
       overallScore,
-      pronunciation: 64,
-      fluency: 66,
-      grammarClarity: 67,
-      speechSpeed: 63,
-      pausesHesitation: 62,
-      confidence: 68,
-      accentClarity: 64,
-      wordStress: 63,
+      pronunciation,
+      fluency,
+      grammarClarity,
+      speechSpeed,
+      pausesHesitation,
+      confidence,
+      accentClarity,
+      wordStress,
       mispronounced: [],
-      missedWords: [],
-      mistakes: [reasonText],
-      tips: [tipText],
+      missedWords: cmp.missed.slice(0, 10),
+      mistakes: [reasonText, ...(cmp.missed.length ? [`Missed ${cmp.missed.length} word(s) from reference text.`] : [])],
+      tips: [tipText, ...(fluency < 60 ? ['Practice reading aloud daily to improve fluency and pacing.'] : [])],
       performanceLevel: fallbackLevel(overallScore),
     };
   }
 
   if (kind === 'listening') {
+    const { transcript = '', originalText = '' } = payload;
+    const cmp = compareText(transcript, originalText);
+    const overallScore = clamp(cmp.accuracy * 0.9 + 10);
+    const listeningScore = clamp(overallScore + 1);
+    const pronunciation = clamp(overallScore - 1);
+    const fluency = clamp(overallScore);
+    const memoryRetention = clamp(cmp.accuracy - 3);
+    const speechClarity = clamp(50 + overallScore * 0.45);
+    const accent = clamp(pronunciation - 2);
+
     return {
       overallScore,
-      listeningScore: 66,
-      accuracy: 65,
-      pronunciation: 64,
-      fluency: 66,
-      memoryRetention: 63,
-      speechClarity: 67,
-      accent: 64,
+      listeningScore,
+      accuracy: cmp.accuracy,
+      pronunciation,
+      fluency,
+      memoryRetention,
+      speechClarity,
+      accent,
       mispronounced: [],
-      missedWords: [],
-      mistakes: [reasonText],
-      tips: [tipText],
+      missedWords: cmp.missed.slice(0, 8),
+      mistakes: [reasonText, ...(cmp.missed.length ? [`Missed ${cmp.missed.length} key word(s) from audio.`] : [])],
+      tips: [tipText, ...(cmp.accuracy < 60 ? ['Replay audio and summarize key points before recording.'] : [])],
       performanceLevel: fallbackLevel(overallScore),
     };
   }
 
+  const { transcript = '', topic = '' } = payload;
+  const spoken = words(transcript);
+  const unique = new Set(spoken);
+  const topicWords = new Set(words(topic));
+  const topicOverlap = spoken.filter((w) => topicWords.has(w)).length;
+  const vocabRichness = spoken.length ? (unique.size / spoken.length) * 100 : 0;
+  const flowBase = spoken.length >= 80 ? 75 : spoken.length >= 40 ? 62 : 48;
+  const topicRelevance = clamp(45 + topicOverlap * 12);
+  const overallScore = clamp((flowBase + vocabRichness * 0.4 + topicRelevance * 0.35) / 1.75);
+
   return {
     overallScore,
-    fluency: 66,
-    vocabulary: 64,
-    grammar: 65,
-    confidence: 67,
-    topicRelevance: 68,
-    speakingFlow: 64,
-    ideaClarity: 66,
-    wordCount: 100,
-    uniqueWordCount: 60,
-    vocabLevel: 'Intermediate',
+    fluency: clamp(flowBase),
+    vocabulary: clamp(vocabRichness * 0.85 + 25),
+    grammar: clamp(overallScore - 2),
+    confidence: clamp(overallScore + 1),
+    topicRelevance,
+    speakingFlow: clamp(flowBase - 1),
+    ideaClarity: clamp((topicRelevance + flowBase) / 2),
+    wordCount: spoken.length,
+    uniqueWordCount: unique.size,
+    vocabLevel: vocabRichness > 70 ? 'Advanced' : vocabRichness > 45 ? 'Intermediate' : 'Basic',
     mistakes: [reasonText],
-    tips: [tipText],
+    tips: [tipText, ...(spoken.length < 50 ? ['Speak longer (at least 80-100 words) to improve score reliability.'] : [])],
     performanceLevel: fallbackLevel(overallScore),
   };
 }
 
 export async function analyzeWithGemini(kind, payload) {
   if (!env.geminiApiKey) {
-    return buildFallbackResult(kind, 'GEMINI_API_KEY is missing.');
+    return buildFallbackResult(kind, payload, 'GEMINI_API_KEY is missing.');
   }
 
   const genAI = new GoogleGenerativeAI(env.geminiApiKey);
@@ -99,5 +158,5 @@ export async function analyzeWithGemini(kind, payload) {
   }
 
   const reason = lastError?.message || 'No supported Gemini model responded successfully.';
-  return buildFallbackResult(kind, reason);
+  return buildFallbackResult(kind, payload, reason);
 }
