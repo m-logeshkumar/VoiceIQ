@@ -9,6 +9,7 @@ const userSchema = new mongoose.Schema(
     college: { type: String, default: '' },
     avatar: { type: String, default: '' },
     streak: { type: Number, default: 0 },
+    lastAssessmentDate: { type: Date, default: null },
   },
   { timestamps: true }
 );

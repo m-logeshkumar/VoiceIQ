@@ -1,8 +1,42 @@
 import { Score } from '../models/Score.js';
+import { User } from '../models/User.js';
+
+function toDayKeyUTC(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getYesterdayKeyUTC(now = new Date()) {
+  const d = new Date(now);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return toDayKeyUTC(d);
+}
 
 export async function saveScore(req, res) {
   const score = await Score.create(req.body);
-  return res.status(201).json({ score });
+
+  let streak = null;
+  const user = await User.findById(req.body.userId);
+  if (user) {
+    const todayKey = toDayKeyUTC(new Date());
+    const lastKey = user.lastAssessmentDate ? toDayKeyUTC(new Date(user.lastAssessmentDate)) : null;
+
+    if (!lastKey) {
+      user.streak = 1;
+    } else if (lastKey === todayKey) {
+      // Same-day attempts should not increment streak.
+      user.streak = Math.max(user.streak || 0, 1);
+    } else if (lastKey === getYesterdayKeyUTC()) {
+      user.streak = (user.streak || 0) + 1;
+    } else {
+      user.streak = 1;
+    }
+
+    user.lastAssessmentDate = new Date();
+    await user.save();
+    streak = user.streak;
+  }
+
+  return res.status(201).json({ score, streak });
 }
 
 export async function getUserScores(req, res) {

@@ -17,7 +17,7 @@ const STEPS = [
 export default function Assessment() {
   const { type } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const [currentStep, setCurrentStep] = useState(type === 'listening' ? 1 : type === 'jam' ? 2 : 0);
   const [results, setResults] = useState({ reading: null, listening: null, jam: null });
   const [savedSteps, setSavedSteps] = useState({ reading: false, listening: false, jam: false });
@@ -55,7 +55,10 @@ export default function Assessment() {
     if (!savedSteps[stepId]) {
       try {
         const stepReport = buildSingleStepReport(stepId, result);
-        await saveScore(user.id, user.name, user.college || '', stepReport);
+        const saved = await saveScore(user.id, user.name, user.college || '', stepReport);
+        if (typeof saved?.streak === 'number') {
+          updateUser({ streak: saved.streak });
+        }
         setSavedSteps(prev => ({ ...prev, [stepId]: true }));
       } catch (err) {
         console.error('Failed to save step score:', err);
@@ -71,7 +74,10 @@ export default function Assessment() {
   const handleFinish = async () => {
     const report = generateFinalReport(results.reading, results.listening, results.jam);
     setFinalReport(report);
-    await saveScore(user.id, user.name, user.college || '', report);
+    const saved = await saveScore(user.id, user.name, user.college || '', report);
+    if (typeof saved?.streak === 'number') {
+      updateUser({ streak: saved.streak });
+    }
     setShowFinal(true);
   };
 

@@ -68,12 +68,12 @@ export async function saveScore(userId, userName, college, report) {
     report,
   };
 
-  const { score } = await apiRequest('/scores', {
+  const { score, streak } = await apiRequest('/scores', {
     method: 'POST',
     body: JSON.stringify(payload),
   }, true);
 
-  return score;
+  return { score, streak };
 }
 
 export async function getUserScores(userId) {
